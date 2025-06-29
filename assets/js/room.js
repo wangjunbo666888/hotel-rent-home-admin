@@ -42,17 +42,14 @@ class RoomManager {
         try {
             this.showLoading();
             
-            // 加载房间数据
-            this.rooms = Storage.get(CONFIG.STORAGE_KEYS.ROOM_DATA, []);
-            if (this.rooms.length === 0) {
-                await this.loadMockRoomData();
-            }
+            // 并行加载房间和公寓数据
+            const [roomsData, apartmentsData] = await Promise.all([
+                roomApi.getList(),
+                apartmentApi.getList()
+            ]);
             
-            // 加载公寓数据
-            this.apartments = Storage.get(CONFIG.STORAGE_KEYS.APARTMENT_DATA, []);
-            if (this.apartments.length === 0) {
-                await this.loadMockApartmentData();
-            }
+            this.rooms = roomsData;
+            this.apartments = apartmentsData;
             
             this.search();
             this.hideLoading();
@@ -62,101 +59,6 @@ class RoomManager {
             Message.error('加载数据失败，请重试');
             this.hideLoading();
         }
-    }
-    
-    /**
-     * 加载模拟房间数据
-     */
-    async loadMockRoomData() {
-        try {
-            const response = await fetch('data/rooms.json');
-            this.rooms = await response.json();
-            Storage.set(CONFIG.STORAGE_KEYS.ROOM_DATA, this.rooms);
-        } catch (error) {
-            console.error('加载模拟房间数据失败:', error);
-            this.rooms = this.getDefaultRoomData();
-            Storage.set(CONFIG.STORAGE_KEYS.ROOM_DATA, this.rooms);
-        }
-    }
-    
-    /**
-     * 加载模拟公寓数据
-     */
-    async loadMockApartmentData() {
-        try {
-            const response = await fetch('data/apartments.json');
-            this.apartments = await response.json();
-            Storage.set(CONFIG.STORAGE_KEYS.APARTMENT_DATA, this.apartments);
-        } catch (error) {
-            console.error('加载模拟公寓数据失败:', error);
-            this.apartments = this.getDefaultApartmentData();
-            Storage.set(CONFIG.STORAGE_KEYS.APARTMENT_DATA, this.apartments);
-        }
-    }
-    
-    /**
-     * 获取默认房间数据
-     */
-    getDefaultRoomData() {
-        return [
-            {
-                id: 1,
-                apartment_id: 1,
-                room_number: "A101",
-                floor: 1,
-                area: 45.5,
-                rent: 3500,
-                deposit: 7000,
-                status: 1,
-                description: "朝南主卧，采光好，家具齐全",
-                facilities: ["空调", "热水器", "洗衣机"],
-                create_time: "2024-01-15 10:30:00"
-            },
-            {
-                id: 2,
-                apartment_id: 1,
-                room_number: "A102",
-                floor: 1,
-                area: 38.0,
-                rent: 3200,
-                deposit: 6400,
-                status: 0,
-                description: "朝北次卧，安静舒适",
-                facilities: ["空调", "热水器"],
-                create_time: "2024-01-10 14:20:00"
-            },
-            {
-                id: 3,
-                apartment_id: 2,
-                room_number: "B201",
-                floor: 2,
-                area: 52.0,
-                rent: 4500,
-                deposit: 9000,
-                status: 1,
-                description: "大户型主卧，带阳台",
-                facilities: ["空调", "热水器", "洗衣机", "冰箱"],
-                create_time: "2024-01-12 09:15:00"
-            }
-        ];
-    }
-    
-    /**
-     * 获取默认公寓数据
-     */
-    getDefaultApartmentData() {
-        return [
-            {
-                id: 1,
-                name: "阳光公寓",
-                address: "北京市朝阳区建国门外大街1号"
-            },
-            {
-                id: 2,
-                name: "翠湖花园",
-                address: "北京市海淀区中关村大街2号"
-            }
-        ];
     }
     
     /**
@@ -293,12 +195,12 @@ class RoomManager {
     search() {
         this.filteredRooms = this.rooms.filter(room => {
             // 房间号搜索
-            if (this.searchParams.roomNumber && !room.room_number.toLowerCase().includes(this.searchParams.roomNumber.toLowerCase())) {
+            if (this.searchParams.roomNumber && !room.roomNumber.toLowerCase().includes(this.searchParams.roomNumber.toLowerCase())) {
                 return false;
             }
             
             // 公寓筛选
-            if (this.searchParams.apartmentId && room.apartment_id !== parseInt(this.searchParams.apartmentId)) {
+            if (this.searchParams.apartmentId && room.apartmentId !== parseInt(this.searchParams.apartmentId)) {
                 return false;
             }
             
@@ -308,11 +210,11 @@ class RoomManager {
             }
             
             // 租金范围筛选
-            if (this.searchParams.rentMin && room.rent < parseFloat(this.searchParams.rentMin)) {
+            if (this.searchParams.rentMin && room.price < parseFloat(this.searchParams.rentMin)) {
                 return false;
             }
             
-            if (this.searchParams.rentMax && room.rent > parseFloat(this.searchParams.rentMax)) {
+            if (this.searchParams.rentMax && room.price > parseFloat(this.searchParams.rentMax)) {
                 return false;
             }
             
@@ -388,13 +290,13 @@ class RoomManager {
         }
         
         roomGrid.innerHTML = pageData.map(room => {
-            const apartment = this.apartments.find(apt => apt.id === room.apartment_id);
+            const apartment = this.apartments.find(apt => apt.id === room.apartmentId);
             const apartmentName = apartment ? apartment.name : '未知公寓';
             
             return `
                 <div class="room-card">
                     <div class="room-card-header">
-                        <h3 class="room-card-title">${room.room_number}</h3>
+                        <h3 class="room-card-title">${room.roomNumber}</h3>
                         <p class="room-card-subtitle">${apartmentName}</p>
                     </div>
                     
@@ -410,7 +312,7 @@ class RoomManager {
                             </div>
                             <div class="room-info-item">
                                 <span class="room-info-label">租金</span>
-                                <span class="room-info-value price">¥${room.rent}/月</span>
+                                <span class="room-info-value price">¥${room.price}/月</span>
                             </div>
                             <div class="room-info-item">
                                 <span class="room-info-label">押金</span>
@@ -513,6 +415,7 @@ class RoomManager {
     
     /**
      * 删除房间
+     * @param {string} id - 房间ID
      */
     async deleteRoom(id) {
         if (!confirm('确定要删除这个房间吗？删除后无法恢复。')) {
@@ -520,12 +423,11 @@ class RoomManager {
         }
         
         try {
-            // 删除房间
-            this.rooms = this.rooms.filter(room => room.id !== parseInt(id));
-            Storage.set(CONFIG.STORAGE_KEYS.ROOM_DATA, this.rooms);
+            // 调用API删除房间
+            await roomApi.delete(id);
             
             Message.success('房间删除成功');
-            this.search();
+            this.loadData(); // 重新加载数据
             
         } catch (error) {
             console.error('删除房间失败:', error);
@@ -589,7 +491,7 @@ class RoomFormManager {
      */
     async loadApartments() {
         try {
-            this.apartments = Storage.get(CONFIG.STORAGE_KEYS.APARTMENT_DATA, []);
+            this.apartments = await apartmentApi.getList();
             this.renderApartmentOptions();
         } catch (error) {
             console.error('加载公寓数据失败:', error);
@@ -600,7 +502,7 @@ class RoomFormManager {
      * 渲染公寓选项
      */
     renderApartmentOptions() {
-        const apartmentSelect = document.querySelector('select[name="apartment_id"]');
+        const apartmentSelect = document.querySelector('select[name="apartmentId"]');
         if (apartmentSelect) {
             apartmentSelect.innerHTML = '<option value="">请选择公寓</option>' +
                 this.apartments.map(apt => 
@@ -681,7 +583,7 @@ class RoomFormManager {
      * 设置表单验证
      */
     setupValidation() {
-        const requiredFields = ['room_number', 'apartment_id', 'floor', 'area', 'rent'];
+        const requiredFields = ['roomNumber', 'apartmentId', 'floor', 'area', 'price'];
         
         requiredFields.forEach(fieldName => {
             const field = document.querySelector(`[name="${fieldName}"]`);
@@ -716,7 +618,7 @@ class RoomFormManager {
         if (field.hasAttribute('required') && !value) {
             isValid = false;
             errorMessage = '此字段为必填项';
-        } else if (fieldName === 'room_number' && value.length < 2) {
+        } else if (fieldName === 'roomNumber' && value.length < 2) {
             isValid = false;
             errorMessage = '房间号至少需要2个字符';
         } else if (fieldName === 'floor' && (isNaN(value) || value < 1)) {
@@ -725,7 +627,7 @@ class RoomFormManager {
         } else if (fieldName === 'area' && (isNaN(value) || value <= 0)) {
             isValid = false;
             errorMessage = '面积必须是大于0的数字';
-        } else if (fieldName === 'rent' && (isNaN(value) || value <= 0)) {
+        } else if (fieldName === 'price' && (isNaN(value) || value <= 0)) {
             isValid = false;
             errorMessage = '租金必须是大于0的数字';
         }
@@ -777,8 +679,8 @@ class RoomFormManager {
         try {
             this.showLoading();
             
-            const rooms = Storage.get(CONFIG.STORAGE_KEYS.ROOM_DATA, []);
-            this.room = rooms.find(room => room.id === parseInt(this.roomId));
+            // 从API获取房间详情
+            this.room = await roomApi.getDetail(this.roomId);
             
             if (!this.room) {
                 Message.error('房间不存在');
@@ -804,7 +706,7 @@ class RoomFormManager {
         if (!form || !this.room) return;
         
         // 填充基本信息
-        const fields = ['room_number', 'apartment_id', 'floor', 'area', 'rent', 'deposit', 'description'];
+        const fields = ['roomNumber', 'apartmentId', 'floor', 'area', 'price', 'deposit', 'description'];
         fields.forEach(field => {
             const input = form.querySelector(`[name="${field}"]`);
             if (input && this.room[field] !== undefined) {
@@ -836,7 +738,7 @@ class RoomFormManager {
         // 更新页面标题
         const title = document.querySelector('.page-title');
         if (title) {
-            title.textContent = `编辑房间 - ${this.room.room_number}`;
+            title.textContent = `编辑房间 - ${this.room.roomNumber}`;
         }
     }
     
@@ -883,7 +785,7 @@ class RoomFormManager {
             if (key === 'facilities') {
                 if (!data.facilities) data.facilities = [];
                 data.facilities.push(value);
-            } else if (key.includes('floor') || key.includes('area') || key.includes('rent') || key.includes('deposit')) {
+            } else if (key.includes('floor') || key.includes('area') || key.includes('price') || key.includes('deposit')) {
                 data[key] = value ? parseFloat(value) : null;
             } else {
                 data[key] = value;
@@ -897,19 +799,8 @@ class RoomFormManager {
      * 创建房间
      */
     async createRoom(data) {
-        const rooms = Storage.get(CONFIG.STORAGE_KEYS.ROOM_DATA, []);
-        
-        const newRoom = {
-            id: Utils.generateId(),
-            ...data,
-            apartment_id: parseInt(data.apartment_id),
-            status: parseInt(data.status),
-            create_time: Utils.formatDate(new Date()),
-            update_time: Utils.formatDate(new Date())
-        };
-        
-        rooms.push(newRoom);
-        Storage.set(CONFIG.STORAGE_KEYS.ROOM_DATA, rooms);
+        // 调用API创建房间
+        const newRoom = await roomApi.create(data);
         
         Message.success('房间创建成功');
         this.goBack();
@@ -919,23 +810,8 @@ class RoomFormManager {
      * 更新房间
      */
     async updateRoom(data) {
-        const rooms = Storage.get(CONFIG.STORAGE_KEYS.ROOM_DATA, []);
-        const index = rooms.findIndex(room => room.id === parseInt(this.roomId));
-        
-        if (index === -1) {
-            Message.error('房间不存在');
-            return;
-        }
-        
-        rooms[index] = {
-            ...rooms[index],
-            ...data,
-            apartment_id: parseInt(data.apartment_id),
-            status: parseInt(data.status),
-            update_time: Utils.formatDate(new Date())
-        };
-        
-        Storage.set(CONFIG.STORAGE_KEYS.ROOM_DATA, rooms);
+        // 调用API更新房间
+        await roomApi.update(this.roomId, data);
         
         Message.success('房间更新成功');
         this.goBack();
@@ -953,7 +829,7 @@ class RoomFormManager {
      * 返回上一页
      */
     goBack() {
-        window.history.back();
+        window.location.href = 'list.html';
     }
     
     /**

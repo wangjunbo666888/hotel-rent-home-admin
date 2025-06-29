@@ -15,6 +15,7 @@ class ApartmentManager {
         this.apartments = [];
         this.filteredApartments = [];
         this.searchParams = {
+            district: '',
             name: '',
             status: '',
             rentMin: '',
@@ -40,17 +41,17 @@ class ApartmentManager {
         // 搜索按钮
         const searchBtn = document.querySelector('.btn-search');
         if (searchBtn) {
-            searchBtn.addEventListener('click', () => {
+            searchBtn.addEventListener('click', async () => {
                 this.currentPage = 1;
-                this.search();
+                await this.search();
             });
         }
         
         // 重置按钮
         const resetBtn = document.querySelector('.btn-reset');
         if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
-                this.resetSearch();
+            resetBtn.addEventListener('click', async () => {
+                await this.resetSearch();
             });
         }
         
@@ -75,20 +76,20 @@ class ApartmentManager {
     bindPaginationEvents() {
         const pagination = document.querySelector('.pagination');
         if (pagination) {
-            pagination.addEventListener('click', (e) => {
+            pagination.addEventListener('click', async (e) => {
                 if (e.target.tagName === 'BUTTON') {
                     const action = e.target.dataset.action;
                     if (action === 'prev' && this.currentPage > 1) {
                         this.currentPage--;
-                        this.renderTable();
+                        await this.renderTable();
                     } else if (action === 'next' && this.currentPage < this.totalPages) {
                         this.currentPage++;
-                        this.renderTable();
+                        await this.renderTable();
                     } else if (action === 'page') {
                         const page = parseInt(e.target.dataset.page);
                         if (page && page !== this.currentPage) {
                             this.currentPage = page;
-                            this.renderTable();
+                            await this.renderTable();
                         }
                     }
                 }
@@ -100,18 +101,21 @@ class ApartmentManager {
      * 绑定表格事件
      */
     bindTableEvents() {
-        const table = document.querySelector('.data-table');
+        const table = document.querySelector('.data-table tbody');
         if (table) {
             table.addEventListener('click', (e) => {
-                const target = e.target;
-                if (target.classList.contains('btn-edit')) {
-                    const id = target.dataset.id;
+                /**
+                 * 兼容点击按钮内的图标（<i>标签）时也能正确响应
+                 * @param {Event} e - 点击事件
+                 */
+                const btn = e.target.closest('.btn-edit, .btn-delete, .btn-view');
+                if (!btn) return;
+                const id = btn.dataset.id;
+                if (btn.classList.contains('btn-edit')) {
                     this.editApartment(id);
-                } else if (target.classList.contains('btn-delete')) {
-                    const id = target.dataset.id;
+                } else if (btn.classList.contains('btn-delete')) {
                     this.deleteApartment(id);
-                } else if (target.classList.contains('btn-view')) {
-                    const id = target.dataset.id;
+                } else if (btn.classList.contains('btn-view')) {
                     this.viewApartment(id);
                 }
             });
@@ -124,21 +128,29 @@ class ApartmentManager {
     setupSearch() {
         // 搜索输入框防抖
         const searchInput = document.querySelector('input[name="name"]');
+        const districtInput = document.querySelector('input[name="district"]');
         if (searchInput) {
-            searchInput.addEventListener('input', Utils.debounce(() => {
+            searchInput.addEventListener('input', Utils.debounce(async () => {
                 this.searchParams.name = searchInput.value;
                 this.currentPage = 1;
-                this.search();
+                await this.search();
             }, 500));
         }
-        
+
+        if (districtInput) {
+            districtInput.addEventListener('input', Utils.debounce(async () => {
+                this.searchParams.district = districtInput.value;
+                this.currentPage = 1;
+                await this.search();
+            }, 500));
+        }
         // 状态筛选
         const statusSelect = document.querySelector('select[name="status"]');
         if (statusSelect) {
-            statusSelect.addEventListener('change', () => {
+            statusSelect.addEventListener('change', async () => {
                 this.searchParams.status = statusSelect.value;
                 this.currentPage = 1;
-                this.search();
+                await this.search();
             });
         }
         
@@ -147,18 +159,18 @@ class ApartmentManager {
         const rentMaxInput = document.querySelector('input[name="rentMax"]');
         
         if (rentMinInput) {
-            rentMinInput.addEventListener('input', Utils.debounce(() => {
+            rentMinInput.addEventListener('input', Utils.debounce(async () => {
                 this.searchParams.rentMin = rentMinInput.value;
                 this.currentPage = 1;
-                this.search();
+                await this.search();
             }, 500));
         }
         
         if (rentMaxInput) {
-            rentMaxInput.addEventListener('input', Utils.debounce(() => {
+            rentMaxInput.addEventListener('input', Utils.debounce(async () => {
                 this.searchParams.rentMax = rentMaxInput.value;
                 this.currentPage = 1;
-                this.search();
+                await this.search();
             }, 500));
         }
     }
@@ -170,15 +182,10 @@ class ApartmentManager {
         try {
             this.showLoading();
             
-            // 从本地存储获取数据
-            this.apartments = Storage.get(CONFIG.STORAGE_KEYS.APARTMENT_DATA, []);
+            // 从API获取数据
+            this.apartments = await apartmentApi.getList();
             
-            // 如果没有数据，加载模拟数据
-            if (this.apartments.length === 0) {
-                await this.loadMockData();
-            }
-            
-            this.search();
+            await this.search();
             this.hideLoading();
             
         } catch (error) {
@@ -189,78 +196,36 @@ class ApartmentManager {
     }
     
     /**
-     * 加载模拟数据
-     */
-    async loadMockData() {
-        try {
-            const response = await fetch('data/apartments.json');
-            this.apartments = await response.json();
-            Storage.set(CONFIG.STORAGE_KEYS.APARTMENT_DATA, this.apartments);
-        } catch (error) {
-            console.error('加载模拟数据失败:', error);
-            // 如果无法加载JSON文件，使用默认数据
-            this.apartments = this.getDefaultData();
-            Storage.set(CONFIG.STORAGE_KEYS.APARTMENT_DATA, this.apartments);
-        }
-    }
-    
-    /**
-     * 获取默认数据
-     */
-    getDefaultData() {
-        return [
-            {
-                id: 1,
-                name: "阳光公寓",
-                address: "北京市朝阳区建国门外大街1号",
-                rent_min: 3000,
-                rent_max: 8000,
-                status: 1,
-                create_time: "2024-01-15 10:30:00"
-            },
-            {
-                id: 2,
-                name: "翠湖花园",
-                address: "北京市海淀区中关村大街2号",
-                rent_min: 4000,
-                rent_max: 12000,
-                status: 1,
-                create_time: "2024-01-10 14:20:00"
-            }
-        ];
-    }
-    
-    /**
      * 搜索公寓
      */
-    search() {
+    async search() {
         this.filteredApartments = this.apartments.filter(apartment => {
-            // 名称搜索
-            if (this.searchParams.name && !apartment.name.toLowerCase().includes(this.searchParams.name.toLowerCase())) {
-                return false;
-            }
+            const districtMatch = !this.searchParams.district || 
+                apartment.district.toLowerCase().includes(this.searchParams.district.toLowerCase());
+
+            const nameMatch = !this.searchParams.name || 
+                apartment.name.toLowerCase().includes(this.searchParams.name.toLowerCase());
             
-            // 状态筛选
-            if (this.searchParams.status && apartment.status !== parseInt(this.searchParams.status)) {
-                return false;
-            }
+            const statusMatch = !this.searchParams.status || 
+                apartment.status === parseInt(this.searchParams.status);
             
-            // 租金范围筛选
-            if (this.searchParams.rentMin && apartment.rent_min < parseFloat(this.searchParams.rentMin)) {
-                return false;
-            }
+            const rentMinMatch = !this.searchParams.rentMin || 
+                apartment.rentMin >= parseFloat(this.searchParams.rentMin);
             
-            if (this.searchParams.rentMax && apartment.rent_max > parseFloat(this.searchParams.rentMax)) {
-                return false;
-            }
+            const rentMaxMatch = !this.searchParams.rentMax || 
+                !apartment.rentMax || apartment.rentMax <= parseFloat(this.searchParams.rentMax);
             
-            return true;
+            return districtMatch && nameMatch && statusMatch && rentMinMatch && rentMaxMatch;
         });
         
         this.totalItems = this.filteredApartments.length;
         this.totalPages = Math.ceil(this.totalItems / this.pageSize);
         
-        this.renderTable();
+        if (this.currentPage > this.totalPages && this.totalPages > 0) {
+            this.currentPage = this.totalPages;
+        }
+        
+        await this.renderTable();
         this.renderPagination();
         this.updateSearchInfo();
     }
@@ -268,7 +233,7 @@ class ApartmentManager {
     /**
      * 重置搜索
      */
-    resetSearch() {
+    async resetSearch() {
         this.searchParams = {
             name: '',
             status: '',
@@ -277,20 +242,19 @@ class ApartmentManager {
         };
         
         // 重置表单
-        const searchForm = document.querySelector('.search-form');
-        if (searchForm) {
-            searchForm.reset();
+        const form = document.querySelector('.search-form');
+        if (form) {
+            form.reset();
         }
         
         this.currentPage = 1;
-        this.search();
-        Message.info('搜索条件已重置');
+        await this.search();
     }
     
     /**
      * 渲染表格
      */
-    renderTable() {
+    async renderTable() {
         const tbody = document.querySelector('.data-table tbody');
         if (!tbody) return;
         
@@ -311,18 +275,19 @@ class ApartmentManager {
             return;
         }
         
+        // 先渲染基本数据
         tbody.innerHTML = pageData.map(apartment => `
-            <tr>
+            <tr data-apartment-id="${apartment.id}">
+                <td>${apartment.district}</td>
                 <td>${apartment.name}</td>
                 <td>${apartment.address}</td>
-                <td>${Utils.formatCurrency(apartment.rent_min)} - ${Utils.formatCurrency(apartment.rent_max)}</td>
-                <td>${this.getRoomCount(apartment.id)}</td>
+                <td>${Utils.formatCurrency(apartment.rentMin)} - ${Utils.formatCurrency(apartment.rentMax)}</td>
+                <td class="room-count">加载中...</td>
                 <td>
                     <span class="status-badge ${apartment.status ? 'active' : 'inactive'}">
                         ${apartment.status ? '启用' : '禁用'}
                     </span>
                 </td>
-                <td>${Utils.formatDate(apartment.create_time, 'YYYY-MM-DD')}</td>
                 <td>
                     <div class="table-actions">
                         <button class="btn-view" data-id="${apartment.id}" title="查看">
@@ -338,6 +303,36 @@ class ApartmentManager {
                 </td>
             </tr>
         `).join('');
+        
+        // 异步更新房间数量
+        await this.updateRoomCounts(pageData);
+    }
+    
+    /**
+     * 更新房间数量
+     */
+    async updateRoomCounts(pageData) {
+        try {
+            const rooms = await roomApi.getList();
+            
+            // 为每个公寓计算房间数量
+            pageData.forEach(apartment => {
+                const roomCount = rooms.filter(room => room.apartment_id === parseInt(apartment.id)).length;
+                const roomCountCell = document.querySelector(`tr[data-apartment-id="${apartment.id}"] .room-count`);
+                if (roomCountCell) {
+                    roomCountCell.textContent = roomCount;
+                }
+            });
+        } catch (error) {
+            console.error('获取房间数量失败:', error);
+            // 如果获取失败，显示0
+            pageData.forEach(apartment => {
+                const roomCountCell = document.querySelector(`tr[data-apartment-id="${apartment.id}"] .room-count`);
+                if (roomCountCell) {
+                    roomCountCell.textContent = '0';
+                }
+            });
+        }
     }
     
     /**
@@ -398,9 +393,14 @@ class ApartmentManager {
     /**
      * 获取公寓的房间数量
      */
-    getRoomCount(apartmentId) {
-        const rooms = Storage.get(CONFIG.STORAGE_KEYS.ROOM_DATA, []);
-        return rooms.filter(room => room.apartment_id === apartmentId).length;
+    async getRoomCount(apartmentId) {
+        try {
+            const rooms = await roomApi.getList();
+            return rooms.filter(room => room.apartment_id === parseInt(apartmentId)).length;
+        } catch (error) {
+            console.error('获取房间数量失败:', error);
+            return 0;
+        }
     }
     
     /**
@@ -426,28 +426,20 @@ class ApartmentManager {
     
     /**
      * 删除公寓
+     * @param {string} id - 公寓ID
      */
     async deleteApartment(id) {
-        if (!confirm('确定要删除这个公寓吗？删除后无法恢复。')) {
-            return;
-        }
-        
         try {
-            // 检查是否有房间关联
-            const rooms = Storage.get(CONFIG.STORAGE_KEYS.ROOM_DATA, []);
-            const relatedRooms = rooms.filter(room => room.apartment_id === parseInt(id));
-            
-            if (relatedRooms.length > 0) {
-                Message.warning(`该公寓下还有 ${relatedRooms.length} 个房间，请先删除或转移房间`);
+            // 确认删除
+            if (!confirm('确定要删除这个公寓吗？此操作不可恢复。')) {
                 return;
             }
             
-            // 删除公寓
-            this.apartments = this.apartments.filter(apartment => apartment.id !== parseInt(id));
-            Storage.set(CONFIG.STORAGE_KEYS.APARTMENT_DATA, this.apartments);
+            // 调用API删除公寓
+            await apartmentApi.delete(id);
             
             Message.success('公寓删除成功');
-            this.search();
+            this.loadApartments(); // 重新加载数据
             
         } catch (error) {
             console.error('删除公寓失败:', error);
@@ -627,8 +619,8 @@ class ApartmentFormManager {
         try {
             this.showLoading();
             
-            const apartments = Storage.get(CONFIG.STORAGE_KEYS.APARTMENT_DATA, []);
-            this.apartment = apartments.find(apt => apt.id === parseInt(this.apartmentId));
+            // 从API获取公寓详情
+            this.apartment = await apartmentApi.getDetail(this.apartmentId);
             
             if (!this.apartment) {
                 Message.error('公寓不存在');
@@ -654,7 +646,7 @@ class ApartmentFormManager {
         if (!form || !this.apartment) return;
         
         // 填充基本信息
-        const fields = ['name', 'address', 'longitude', 'latitude', 'rent_min', 'rent_max'];
+        const fields = ['district','name', 'address', 'longitude', 'latitude', 'rentMin', 'rentMax'];
         fields.forEach(field => {
             const input = form.querySelector(`[name="${field}"]`);
             if (input && this.apartment[field] !== undefined) {
@@ -663,7 +655,7 @@ class ApartmentFormManager {
         });
         
         // 填充费用信息
-        const feeFields = ['property_fee', 'water_fee', 'electricity_fee', 'heating_fee', 'internet_fee', 'parking_fee'];
+        const feeFields = ['propertyFee', 'waterFee', 'electricityFee', 'heatingFee', 'internetFee', 'parkingFee'];
         feeFields.forEach(field => {
             const input = form.querySelector(`[name="${field}"]`);
             if (input && this.apartment[field] !== undefined) {
@@ -672,7 +664,7 @@ class ApartmentFormManager {
         });
         
         // 填充设施信息
-        const facilityFields = ['has_elevator', 'facilities', 'transportation', 'promotion'];
+        const facilityFields = ['hasElevator', 'facilities', 'transportation', 'promotion'];
         facilityFields.forEach(field => {
             const input = form.querySelector(`[name="${field}"]`);
             if (input && this.apartment[field] !== undefined) {
@@ -733,7 +725,7 @@ class ApartmentFormManager {
         for (const [key, value] of formData.entries()) {
             if (key === 'has_elevator') {
                 data[key] = value === 'on' ? 1 : 0;
-            } else if (key.includes('_fee') || key.includes('rent_') || key.includes('longitude') || key.includes('latitude')) {
+            } else if (key.includes('fee') || key.includes('rent') || key.includes('longitude') || key.includes('latitude')) {
                 data[key] = value ? parseFloat(value) : null;
             } else {
                 data[key] = value;
@@ -747,18 +739,8 @@ class ApartmentFormManager {
      * 创建公寓
      */
     async createApartment(data) {
-        const apartments = Storage.get(CONFIG.STORAGE_KEYS.APARTMENT_DATA, []);
-        
-        const newApartment = {
-            id: Utils.generateId(),
-            ...data,
-            status: 1,
-            create_time: Utils.formatDate(new Date()),
-            update_time: Utils.formatDate(new Date())
-        };
-        
-        apartments.push(newApartment);
-        Storage.set(CONFIG.STORAGE_KEYS.APARTMENT_DATA, apartments);
+        // 调用API创建公寓
+        const newApartment = await apartmentApi.create(data);
         
         Message.success('公寓创建成功');
         this.goBack();
@@ -768,21 +750,8 @@ class ApartmentFormManager {
      * 更新公寓
      */
     async updateApartment(data) {
-        const apartments = Storage.get(CONFIG.STORAGE_KEYS.APARTMENT_DATA, []);
-        const index = apartments.findIndex(apt => apt.id === parseInt(this.apartmentId));
-        
-        if (index === -1) {
-            Message.error('公寓不存在');
-            return;
-        }
-        
-        apartments[index] = {
-            ...apartments[index],
-            ...data,
-            update_time: Utils.formatDate(new Date())
-        };
-        
-        Storage.set(CONFIG.STORAGE_KEYS.APARTMENT_DATA, apartments);
+        // 调用API更新公寓
+        await apartmentApi.update(this.apartmentId, data);
         
         Message.success('公寓更新成功');
         this.goBack();

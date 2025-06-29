@@ -48,8 +48,34 @@ class DashboardManager {
             // 模拟加载状态
             this.showLoading();
             
-            // 获取模拟数据
-            const data = await this.getMockStatistics();
+            // 并行获取公寓和房间数据
+            const [apartments, rooms] = await Promise.all([
+                apartmentApi.getList(),
+                roomApi.getList()
+            ]);
+            
+            // 计算统计数据
+            const apartmentCount = apartments.length;
+            const roomCount = rooms.length;
+            const availableCount = rooms.filter(room => room.status === 1).length;
+            
+            // 计算平均租金
+            let totalPrice = 0;
+            let priceCount = 0;
+            rooms.forEach(room => {
+                if (room.rent && room.rent > 0) {
+                    totalPrice += parseFloat(room.rent);
+                    priceCount++;
+                }
+            });
+            const avgPrice = priceCount > 0 ? totalPrice / priceCount : 0;
+            
+            const data = {
+                apartmentCount,
+                roomCount,
+                availableCount,
+                avgPrice: Math.round(avgPrice * 100) / 100
+            };
             
             // 更新统计卡片
             this.updateStatistics(data);
@@ -62,41 +88,6 @@ class DashboardManager {
             Message.error('加载统计数据失败，请重试');
             this.hideLoading();
         }
-    }
-    
-    /**
-     * 获取模拟统计数据
-     */
-    async getMockStatistics() {
-        // 模拟API调用延迟
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // 从本地存储获取数据
-        const apartments = Storage.get(CONFIG.STORAGE_KEYS.APARTMENT_DATA, []);
-        const rooms = Storage.get(CONFIG.STORAGE_KEYS.ROOM_DATA, []);
-        
-        // 计算统计数据
-        const apartmentCount = apartments.length;
-        const roomCount = rooms.length;
-        const availableCount = rooms.filter(room => room.status === 1).length;
-        
-        // 计算平均租金
-        let totalPrice = 0;
-        let priceCount = 0;
-        rooms.forEach(room => {
-            if (room.price && room.price > 0) {
-                totalPrice += parseFloat(room.price);
-                priceCount++;
-            }
-        });
-        const avgPrice = priceCount > 0 ? totalPrice / priceCount : 0;
-        
-        return {
-            apartmentCount,
-            roomCount,
-            availableCount,
-            avgPrice: Math.round(avgPrice * 100) / 100
-        };
     }
     
     /**
@@ -216,8 +207,8 @@ class DashboardManager {
     /**
      * 刷新统计数据
      */
-    refreshStatistics() {
-        this.loadStatistics();
+    async refreshStatistics() {
+        await this.loadStatistics();
         Message.info('统计数据已刷新');
     }
     
