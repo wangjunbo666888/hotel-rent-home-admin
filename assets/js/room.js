@@ -469,6 +469,8 @@ class RoomFormManager {
         this.isEdit = !!this.roomId;
         this.room = null;
         this.apartments = [];
+        this.imageUploadUI = null;
+        this.videoUploadUI = null;
         
         this.init();
     }
@@ -480,6 +482,7 @@ class RoomFormManager {
         this.loadApartments();
         this.bindEvents();
         this.setupValidation();
+        this.initFileUpload();
         
         if (this.isEdit) {
             this.loadRoom();
@@ -537,13 +540,7 @@ class RoomFormManager {
         // 状态选择
         this.bindStatusEvents();
         
-        // 图片上传
-        const imageUpload = document.querySelector('.room-image-upload');
-        if (imageUpload) {
-            imageUpload.addEventListener('click', () => {
-                this.openImageUpload();
-            });
-        }
+        // 文件上传功能已通过FileUploadUI组件处理
     }
     
     /**
@@ -579,6 +576,31 @@ class RoomFormManager {
         });
     }
     
+    /**
+     * 初始化文件上传组件
+     */
+    initFileUpload() {
+        // 初始化图片上传
+        const imageContainer = document.getElementById('imageUploadContainer');
+        if (imageContainer) {
+            this.imageUploadUI = new FileUploadUI({
+                container: imageContainer,
+                maxFiles: 10,
+                baseUrl: CONFIG.API_BASE_URL
+            });
+        }
+        
+        // 初始化视频上传
+        const videoContainer = document.getElementById('videoUploadContainer');
+        if (videoContainer) {
+            this.videoUploadUI = new FileUploadUI({
+                container: videoContainer,
+                maxFiles: 3,
+                baseUrl: CONFIG.API_BASE_URL
+            });
+        }
+    }
+
     /**
      * 设置表单验证
      */
@@ -735,6 +757,20 @@ class RoomFormManager {
             });
         }
         
+        // 填充已上传的文件
+        if (this.room.images) {
+            const imageUrls = this.room.images.split(',').filter(url => url.trim());
+            if (imageUrls.length > 0 && this.imageUploadUI) {
+                // 这里可以添加显示已上传图片的逻辑
+                console.log('已上传的图片:', imageUrls);
+            }
+        }
+        
+        if (this.room.videoUrl && this.videoUploadUI) {
+            // 这里可以添加显示已上传视频的逻辑
+            console.log('已上传的视频:', this.room.videoUrl);
+        }
+        
         // 更新页面标题
         const title = document.querySelector('.page-title');
         if (title) {
@@ -789,6 +825,21 @@ class RoomFormManager {
                 data[key] = value ? parseFloat(value) : null;
             } else {
                 data[key] = value;
+            }
+        }
+        
+        // 获取上传的文件URL
+        if (this.imageUploadUI) {
+            const imageUrls = this.imageUploadUI.getUploadedFiles();
+            if (imageUrls.length > 0) {
+                data.images = imageUrls.join(',');
+            }
+        }
+        
+        if (this.videoUploadUI) {
+            const videoUrls = this.videoUploadUI.getUploadedFiles();
+            if (videoUrls.length > 0) {
+                data.videoUrl = videoUrls[0]; // 只取第一个视频
             }
         }
         

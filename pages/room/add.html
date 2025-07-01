@@ -13,6 +13,7 @@
     <link href="../../assets/css/common.css" rel="stylesheet">
     <link href="../../assets/css/layout.css" rel="stylesheet">
     <link href="../../assets/css/room.css" rel="stylesheet">
+    <link href="../../assets/css/fileUpload.css" rel="stylesheet">
 </head>
 <body>
     <div class="app-container">
@@ -110,13 +111,13 @@
                                     <div class="room-form-row">
                                         <div class="room-form-group">
                                             <label class="room-form-label required" for="floor">楼层</label>
-                                            <input type="number" id="floor" name="floor" class="room-form-control" min="1" required>
+                                            <input type="text" id="floor" name="floor" class="room-form-control" required>
                                             <div class="room-form-text">房间所在楼层</div>
                                         </div>
                                         
                                         <div class="room-form-group">
                                             <label class="room-form-label required" for="area">面积</label>
-                                            <input type="number" id="area" name="area" class="room-form-control" step="0.1" min="0" required>
+                                            <input type="text" id="area" name="area" class="room-form-control" required>
                                             <div class="room-form-text">房间面积（平方米）</div>
                                         </div>
                                     </div>
@@ -129,14 +130,14 @@
                                     <div class="room-form-row">
                                         <div class="room-form-group">
                                             <label class="room-form-label required" for="rent">月租金</label>
-                                            <input type="number" id="rent" name="price" class="room-form-control" step="0.01" min="0" required>
+                                            <input type="text" id="rent" name="price" class="room-form-control" required>
                                             <div class="room-form-text">每月租金（元）</div>
                                         </div>
                                         
                                         <div class="room-form-group">
                                             <label class="room-form-label" for="deposit">押金</label>
-                                            <input type="number" id="deposit" name="deposit" class="room-form-control" step="0.01" min="0">
-                                            <div class="room-form-text">押金金额（元），通常为月租金的1-2倍</div>
+                                            <input type="text" id="deposit" name="deposit" class="room-form-control">
+                                            <div class="room-form-text">押金金额（元），通常为月租金的1倍</div>
                                         </div>
                                     </div>
                                 </div>
@@ -233,11 +234,19 @@
                                     
                                     <div class="room-form-group">
                                         <label class="room-form-label">上传图片</label>
-                                        <div class="room-image-upload">
-                                            <i class="fas fa-cloud-upload-alt"></i>
-                                            <p>点击上传房间图片</p>
-                                        </div>
-                                        <div class="room-form-text">支持JPG、PNG格式，单张图片不超过5MB</div>
+                                        <div id="imageUploadContainer"></div>
+                                        <div class="room-form-text">支持JPG、PNG、WebP格式，单张图片不超过5MB</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 房间视频 -->
+                                <div class="room-form-section">
+                                    <h3>房间视频</h3>
+                                    
+                                    <div class="room-form-group">
+                                        <label class="room-form-label">上传视频</label>
+                                        <div id="videoUploadContainer"></div>
+                                        <div class="room-form-text">支持MP4、AVI、MOV格式，单个视频不超过50MB</div>
                                     </div>
                                 </div>
                                 
@@ -267,6 +276,7 @@
     <!-- 自定义脚本 -->
     <script src="../../assets/js/common.js"></script>
     <script src="../../assets/js/api.js"></script>
+    <script src="../../assets/js/fileUpload.js"></script>
     <script src="../../assets/js/room.js"></script>
 </body>
 </html> 
